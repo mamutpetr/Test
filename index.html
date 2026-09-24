@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Таксі — Демо</title>
+  <link rel="stylesheet" href="shared/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="brand">
+      <div class="logo"><span class="dot"></span> Таксі</div>
+      <span class="role">Демо</span>
+    </header>
+
+    <section class="card">
+      <h2>Два застосунки</h2>
+      <p class="muted" style="margin:0;">
+        Демо-сервіс таксі: клієнт замовляє поїздку, водій отримує заявку,
+        приймає її і проводить від «в дорозі» до «завершено». Обидві сторони
+        синхронізуються між вкладками через <code>localStorage</code>.
+      </p>
+      <div class="row">
+        <a class="btn primary" href="client/">Відкрити застосунок клієнта</a>
+        <a class="btn accent"  href="driver/">Відкрити застосунок водія</a>
+      </div>
+      <p class="muted" style="margin:0;">
+        Порада: відкрийте обидва застосунки у двох сусідніх вкладках або вікнах —
+        зміни в одному одразу з’являться в іншому.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Як запустити</h2>
+      <p class="muted" style="margin:0;">
+        Запустіть будь-який статичний сервер у корені проєкту, наприклад:
+      </p>
+      <pre style="margin:0; padding:12px; background:var(--border); border-radius:10px; overflow:auto;"><code>python3 -m http.server 8080</code></pre>
+      <p class="muted" style="margin:0;">
+        Потім відкрийте <code>http://localhost:8080/</code>.
+      </p>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Таксі — Водій</title>
+  <link rel="stylesheet" href="../shared/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="brand">
+      <div class="logo"><span class="dot"></span> Таксі</div>
+      <span class="role">Водій</span>
+    </header>
+
+    <section class="card" id="profile-card">
+      <h2>Профіль водія</h2>
+      <div class="field">
+        <label for="name">Ім'я</label>
+        <input id="name" placeholder="Ваше ім'я" />
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="car">Авто</label>
+          <input id="car" placeholder="Skoda Octavia" />
+        </div>
+        <div class="field">
+          <label for="plate">Номер</label>
+          <input id="plate" placeholder="AA 1234 BB" />
+        </div>
+      </div>
+      <div class="row" style="align-items:center;">
+        <span id="status-pill" class="pill off">Офлайн</span>
+        <button class="btn primary" id="toggle-btn">Вийти на лінію</button>
+      </div>
+    </section>
+
+    <section class="card" id="active-card" hidden>
+      <h2>Поточна поїздка</h2>
+      <div id="active-ride" class="ride"></div>
+      <div class="row" id="active-actions"></div>
+    </section>
+
+    <section class="card">
+      <h2>Нові заявки</h2>
+      <div id="requests" class="list">
+        <div class="empty">Поки що заявок немає</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Історія</h2>
+      <div id="history" class="list">
+        <div class="empty">Історія порожня</div>
+      </div>
+    </section>
+
+    <div class="footer-links">
+      <a href="../client/">Ви клієнт? Відкрити застосунок клієнта →</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      Store, uid, formatUAH, formatTime, StatusLabel,
+    } from '../shared/store.js';
+
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      name: $('name'), car: $('car'), plate: $('plate'),
+      statusPill: $('status-pill'), toggleBtn: $('toggle-btn'),
+      requests: $('requests'), history: $('history'),
+      activeCard: $('active-card'), activeRide: $('active-ride'),
+      activeActions: $('active-actions'),
+    };
+
+    // Persist the driver identity in this browser so refresh keeps them
+    // on the same driver record.
+    let driverId = localStorage.getItem('taxi_driver_id');
+    if (!driverId) {
+      driverId = uid();
+      localStorage.setItem('taxi_driver_id', driverId);
+    }
+
+    function loadProfile() {
+      const s = Store.get();
+      let d = s.drivers.find((d) => d.id === driverId);
+      if (!d) {
+        d = {
+          id: driverId,
+          name: '', car: '', plate: '',
+          online: false,
+          lat: 50.45, lng: 30.52,
+        };
+        Store.update((s) => { s.drivers.push(d); });
+      }
+      els.name.value  = d.name;
+      els.car.value   = d.car;
+      els.plate.value = d.plate;
+      return d;
+    }
+
+    function saveProfile(patch) {
+      Store.update((s) => {
+        const d = s.drivers.find((d) => d.id === driverId);
+        if (d) Object.assign(d, patch);
+      });
+      Store.notify();
+    }
+
+    els.name.addEventListener('input',  () => saveProfile({ name:  els.name.value.trim() }));
+    els.car.addEventListener('input',   () => saveProfile({ car:   els.car.value.trim() }));
+    els.plate.addEventListener('input', () => saveProfile({ plate: els.plate.value.trim() }));
+
+    els.toggleBtn.addEventListener('click', () => {
+      const d = loadProfile();
+      if (!d.name.trim()) {
+        els.name.focus();
+        return;
+      }
+      saveProfile({ online: !d.online });
+      render();
+    });
+
+    function myActiveRide(state) {
+      return state.rides.find(
+        (r) => r.driverId === driverId
+          && r.status !== 'completed'
+          && r.status !== 'cancelled'
+      ) || null;
+    }
+
+    function acceptRide(rideId) {
+      Store.update((s) => {
+        const r = s.rides.find((r) => r.id === rideId);
+        if (r && r.status === 'requested') {
+          r.status = 'accepted';
+          r.driverId = driverId;
+          r.updatedAt = Date.now();
+        }
+      });
+      Store.notify();
+      render();
+    }
+
+    function advanceRide(rideId, next) {
+      Store.update((s) => {
+        const r = s.rides.find((r) => r.id === rideId);
+        if (r && r.driverId === driverId) {
+          r.status = next;
+          r.updatedAt = Date.now();
+        }
+      });
+      Store.notify();
+      render();
+    }
+
+    function renderRequests(state, activeRide) {
+      const d = state.drivers.find((d) => d.id === driverId);
+      const canTakeNew = d?.online && !activeRide;
+
+      const list = state.rides.filter((r) => r.status === 'requested');
+      if (!list.length) {
+        els.requests.innerHTML =
+          `<div class="empty">${
+            canTakeNew ? 'Очікуємо нові замовлення…' :
+            (d?.online ? 'Спочатку завершіть поточну поїздку' : 'Вийдіть на лінію, щоб отримувати замовлення')
+          }</div>`;
+        return;
+      }
+      els.requests.innerHTML = list.map((r) => `
+        <div class="ride">
+          <div class="row" style="justify-content:space-between; align-items:center;">
+            <span class="pill info">${StatusLabel[r.status]}</span>
+            <span class="muted">${formatTime(r.createdAt)}</span>
+          </div>
+          <div class="route">
+            <span class="marker from"></span><span>${escapeHtml(r.from)}</span>
+            <span class="marker to"></span><span>${escapeHtml(r.to)}</span>
+          </div>
+          <div class="meta">
+            <span>${escapeHtml(r.clientName)} • ${r.distanceKm.toFixed(1)} км</span>
+            <span class="strong">${formatUAH(r.price)}</span>
+          </div>
+          <div class="row">
+            <button class="btn success" data-accept="${r.id}" ${canTakeNew ? '' : 'disabled'}>
+              Прийняти
+            </button>
+          </div>
+        </div>
+      `).join('');
+      els.requests.querySelectorAll('[data-accept]').forEach((btn) => {
+        btn.addEventListener('click', () => acceptRide(btn.dataset.accept));
+      });
+    }
+
+    function renderActive(ride) {
+      if (!ride) {
+        els.activeCard.hidden = true;
+        return;
+      }
+      els.activeCard.hidden = false;
+
+      const nextByStatus = {
+        accepted: { label: 'Я на місці',       next: 'arrived'   },
+        arrived:  { label: 'Почати поїздку',   next: 'started'   },
+        started:  { label: 'Завершити',        next: 'completed' },
+      };
+      const step = nextByStatus[ride.status];
+
+      els.activeRide.innerHTML = `
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <span class="pill warn">${StatusLabel[ride.status]}</span>
+          <span class="muted">${formatTime(ride.updatedAt)}</span>
+        </div>
+        <div class="route">
+          <span class="marker from"></span><span>${escapeHtml(ride.from)}</span>
+          <span class="marker to"></span><span>${escapeHtml(ride.to)}</span>
+        </div>
+        <div class="meta">
+          <span>${escapeHtml(ride.clientName)} • ${ride.distanceKm.toFixed(1)} км</span>
+          <span class="strong">${formatUAH(ride.price)}</span>
+        </div>
+      `;
+      els.activeActions.innerHTML = `
+        ${step ? `<button class="btn accent"  data-next="${step.next}">${step.label}</button>` : ''}
+        <button class="btn danger" data-cancel>Скасувати</button>
+      `;
+      const nextBtn = els.activeActions.querySelector('[data-next]');
+      if (nextBtn) nextBtn.addEventListener('click',
+        () => advanceRide(ride.id, nextBtn.dataset.next));
+      els.activeActions.querySelector('[data-cancel]')
+        .addEventListener('click', () => advanceRide(ride.id, 'cancelled'));
+    }
+
+    function renderHistory(state) {
+      const list = state.rides
+        .filter((r) => r.driverId === driverId
+          && (r.status === 'completed' || r.status === 'cancelled'))
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 10);
+
+      if (!list.length) {
+        els.history.innerHTML = '<div class="empty">Історія порожня</div>';
+        return;
+      }
+      const total = list
+        .filter((r) => r.status === 'completed')
+        .reduce((s, r) => s + r.price, 0);
+
+      els.history.innerHTML = `
+        <div class="muted">Загалом за виконані поїздки: <span class="strong">${formatUAH(total)}</span></div>
+        ${list.map((r) => `
+          <div class="ride">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <span class="pill ${r.status === 'completed' ? 'success' : 'danger'}">
+                ${StatusLabel[r.status]}
+              </span>
+              <span class="muted">${formatTime(r.updatedAt)}</span>
+            </div>
+            <div class="route">
+              <span class="marker from"></span><span>${escapeHtml(r.from)}</span>
+              <span class="marker to"></span><span>${escapeHtml(r.to)}</span>
+            </div>
+            <div class="meta">
+              <span>${escapeHtml(r.clientName)} • ${r.distanceKm.toFixed(1)} км</span>
+              <span class="strong">${formatUAH(r.price)}</span>
+            </div>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    function render() {
+      const state = Store.get();
+      const d = state.drivers.find((d) => d.id === driverId);
+      if (d?.online) {
+        els.statusPill.className = 'pill on';
+        els.statusPill.textContent = 'На лінії';
+        els.toggleBtn.textContent = 'Вийти з лінії';
+      } else {
+        els.statusPill.className = 'pill off';
+        els.statusPill.textContent = 'Офлайн';
+        els.toggleBtn.textContent = 'Вийти на лінію';
+      }
+      const active = myActiveRide(state);
+      renderActive(active);
+      renderRequests(state, active);
+      renderHistory(state);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
+      }[c]));
+    }
+
+    loadProfile();
+    Store.onChange(render);
+    render();
+  </script>
+</body>
+</html>

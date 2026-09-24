@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Таксі — Клієнт</title>
+  <link rel="stylesheet" href="../shared/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="brand">
+      <div class="logo"><span class="dot"></span> Таксі</div>
+      <span class="role">Клієнт</span>
+    </header>
+
+    <section class="card" id="form-card">
+      <h2>Замовити поїздку</h2>
+      <div class="field">
+        <label for="name">Ім'я</label>
+        <input id="name" placeholder="Як до вас звертатися?" />
+      </div>
+      <div class="field">
+        <label for="from">Звідки</label>
+        <input id="from" placeholder="Наприклад, вул. Хрещатик 1" />
+      </div>
+      <div class="field">
+        <label for="to">Куди</label>
+        <input id="to" placeholder="Наприклад, аеропорт Бориспіль" />
+      </div>
+
+      <div class="row">
+        <div class="pill info" id="estimate">Введіть маршрут для розрахунку</div>
+      </div>
+      <button class="btn primary" id="request-btn">Замовити</button>
+    </section>
+
+    <section class="card" id="active-card" hidden>
+      <h2>Ваша поїздка</h2>
+      <div class="map">
+        <div class="pin from"></div>
+        <div class="pin to"></div>
+        <div class="car" id="car"></div>
+      </div>
+      <div class="ride" id="active-ride"></div>
+      <div class="row">
+        <button class="btn ghost"  id="cancel-btn">Скасувати</button>
+        <button class="btn primary" id="new-btn" hidden>Нова поїздка</button>
+      </div>
+    </section>
+
+    <div class="footer-links">
+      <a href="../driver/">Ви водій? Відкрити застосунок водія →</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      Store, uid, estimatePrice, fakeDistanceKm,
+      formatUAH, formatTime, StatusLabel,
+    } from '../shared/store.js';
+
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      name: $('name'), from: $('from'), to: $('to'),
+      estimate: $('estimate'), requestBtn: $('request-btn'),
+      formCard: $('form-card'),
+      activeCard: $('active-card'), activeRide: $('active-ride'),
+      cancelBtn: $('cancel-btn'), newBtn: $('new-btn'),
+      car: $('car'),
+    };
+
+    // Restore name across sessions for convenience.
+    els.name.value = localStorage.getItem('taxi_client_name') || '';
+    els.name.addEventListener('input', () => {
+      localStorage.setItem('taxi_client_name', els.name.value);
+    });
+
+    // Remember the current ride id per client tab.
+    let myRideId = localStorage.getItem('taxi_client_ride_id') || null;
+
+    function updateEstimate() {
+      const from = els.from.value.trim();
+      const to = els.to.value.trim();
+      if (!from || !to) {
+        els.estimate.textContent = 'Введіть маршрут для розрахунку';
+        els.estimate.className = 'pill info';
+        return;
+      }
+      const km = fakeDistanceKm(from, to);
+      const price = estimatePrice(km);
+      els.estimate.textContent = `≈ ${km.toFixed(1)} км • ${formatUAH(price)}`;
+      els.estimate.className = 'pill warn';
+    }
+
+    els.from.addEventListener('input', updateEstimate);
+    els.to.addEventListener('input', updateEstimate);
+
+    els.requestBtn.addEventListener('click', () => {
+      const name = els.name.value.trim() || 'Клієнт';
+      const from = els.from.value.trim();
+      const to = els.to.value.trim();
+      if (!from || !to) {
+        els.estimate.textContent = 'Вкажіть точки відправлення та призначення';
+        els.estimate.className = 'pill danger';
+        return;
+      }
+      const km = fakeDistanceKm(from, to);
+      const price = estimatePrice(km);
+      const now = Date.now();
+      const ride = {
+        id: uid(),
+        clientName: name,
+        from, to,
+        distanceKm: +km.toFixed(1),
+        price,
+        status: 'requested',
+        driverId: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      Store.update((s) => { s.rides.push(ride); });
+      Store.notify();
+      myRideId = ride.id;
+      localStorage.setItem('taxi_client_ride_id', myRideId);
+      render();
+    });
+
+    els.cancelBtn.addEventListener('click', () => {
+      if (!myRideId) return;
+      Store.update((s) => {
+        const r = s.rides.find((r) => r.id === myRideId);
+        if (r && r.status !== 'completed') {
+          r.status = 'cancelled';
+          r.updatedAt = Date.now();
+        }
+      });
+      Store.notify();
+      render();
+    });
+
+    els.newBtn.addEventListener('click', () => {
+      myRideId = null;
+      localStorage.removeItem('taxi_client_ride_id');
+      els.from.value = '';
+      els.to.value = '';
+      updateEstimate();
+      render();
+    });
+
+    function findMyRide() {
+      if (!myRideId) return null;
+      const s = Store.get();
+      return s.rides.find((r) => r.id === myRideId) || null;
+    }
+
+    // Animate the "car" marker on the mini-map based on status.
+    function moveCar(status) {
+      const box = els.car;
+      const positions = {
+        requested: { left: '10%', top: '85%' },
+        accepted:  { left: '35%', top: '70%' },
+        arrived:   { left: '12%', top: '68%' },
+        started:   { left: '55%', top: '45%' },
+        completed: { left: '86%', top: '22%' },
+        cancelled: { left: '10%', top: '85%' },
+      };
+      const p = positions[status] || positions.requested;
+      box.style.left = p.left;
+      box.style.top = p.top;
+    }
+
+    function renderActive(ride) {
+      const state = Store.get();
+      const driver = ride.driverId
+        ? state.drivers.find((d) => d.id === ride.driverId)
+        : null;
+
+      const pill = {
+        requested: 'pill info',
+        accepted:  'pill warn',
+        arrived:   'pill warn',
+        started:   'pill info',
+        completed: 'pill success',
+        cancelled: 'pill danger',
+      }[ride.status] || 'pill';
+
+      els.activeRide.innerHTML = `
+        <div class="row" style="justify-content: space-between; align-items:center;">
+          <span class="${pill}">${StatusLabel[ride.status]}</span>
+          <span class="muted">${formatTime(ride.createdAt)}</span>
+        </div>
+        <div class="route">
+          <span class="marker from"></span><span>${escapeHtml(ride.from)}</span>
+          <span class="marker to"></span><span>${escapeHtml(ride.to)}</span>
+        </div>
+        <div class="meta">
+          <span>${ride.distanceKm.toFixed(1)} км</span>
+          <span class="strong">${formatUAH(ride.price)}</span>
+        </div>
+        ${driver ? `
+          <div class="muted">
+            Водій: <span class="strong">${escapeHtml(driver.name)}</span> •
+            ${escapeHtml(driver.car)} • ${escapeHtml(driver.plate)}
+          </div>` : ''}
+      `;
+      moveCar(ride.status);
+
+      const done = ride.status === 'completed' || ride.status === 'cancelled';
+      els.cancelBtn.hidden = done;
+      els.newBtn.hidden = !done;
+    }
+
+    function render() {
+      const ride = findMyRide();
+      if (!ride) {
+        els.activeCard.hidden = true;
+        els.formCard.hidden = false;
+        return;
+      }
+      els.formCard.hidden = true;
+      els.activeCard.hidden = false;
+      renderActive(ride);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
+      }[c]));
+    }
+
+    Store.onChange(render);
+    updateEstimate();
+    render();
+  </script>
+</body>
+</html>
