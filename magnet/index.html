@@ -177,6 +177,35 @@
     .btn[aria-pressed="true"] { border-color: rgb(var(--south)); color: rgb(var(--south)); }
     .btn:disabled { opacity: 0.4; cursor: default; }
 
+    .fix {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid rgb(var(--north) / 0.55);
+      font-size: 14px;
+    }
+    .fix[hidden] { display: none; }
+    .fix h2 { margin: 0; font: 700 16px/1.3 var(--font-display); color: rgb(var(--north)); }
+    .fix p { margin: 0; color: var(--muted); }
+    .fix ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+    .flag-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .flag-row[hidden] { display: none; }
+    .flag-row code {
+      flex: 1 1 200px;
+      min-width: 0;
+      font: 12px/1.4 var(--font-mono);
+      color: var(--fg);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      word-break: break-all;
+      user-select: all;
+    }
+    .diag { font: 11px/1.5 var(--font-mono); }
     .hint { margin: 0; font-size: 13px; color: var(--muted); }
     .help { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
     .help summary { cursor: pointer; color: var(--fg); font-weight: 500; }
@@ -258,6 +287,22 @@
       <span id="status" class="pill" role="status">Датчик вимкнено</span>
     </header>
 
+    <section id="fix" class="fix" hidden>
+      <h2 id="fix-title"></h2>
+      <p id="fix-body"></p>
+      <ol id="fix-steps" hidden>
+        <li>Скопіюйте адресу нижче.</li>
+        <li>Вставте її в адресний рядок <b>Chrome</b> і відкрийте.</li>
+        <li>Біля «Generic Sensor Extra Classes» виберіть <b>Enabled</b>.</li>
+        <li>Натисніть <b>Relaunch</b> внизу й поверніться на цю сторінку.</li>
+      </ol>
+      <div id="flag-row" class="flag-row" hidden>
+        <code id="flag-url">chrome://flags/#enable-generic-sensor-extra-classes</code>
+        <button id="copy" class="btn" type="button">Скопіювати</button>
+      </div>
+      <p id="diag" class="diag"></p>
+    </section>
+
     <section class="hero">
       <p class="eyebrow">Magnetic UI · у браузері</p>
       <h1 id="title">Піднесіть магніт до телефона</h1>
@@ -300,17 +345,7 @@
     <p id="hint" class="hint"></p>
 
     <details class="help">
-      <summary>Як увімкнути точний режим</summary>
-      <ol>
-        <li>Відкрийте сторінку в Chrome на Android.</li>
-        <li>В адресному рядку введіть <code>chrome://flags/#enable-generic-sensor-extra-classes</code>, поставте <b>Enabled</b> і перезапустіть Chrome.</li>
-        <li>Поверніться сюди: у статусі з'явиться «Магнітометр» і сила поля в µT.</li>
-      </ol>
-      <p>
-        Без прапорця сторінка працює через компас: вона бачить лише, куди магніт відхилив стрілку,
-        тому відстеження грубіше. На iPhone також працює компас (Safari попросить дозвіл).
-        Якщо датчиків немає зовсім, магнітом стає палець.
-      </p>
+      <summary>Поради</summary>
       <p>
         Найкраще: телефон лежить на столі, невеликий неодимовий магніт на відстані 1–10 см.
         Для порівняння: поле Землі — близько 50 µT, магніт упритул — тисячі µT.

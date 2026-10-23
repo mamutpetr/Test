@@ -150,7 +150,7 @@ export class MagnetModel {
 /** Пороги для кожного джерела: µT у магнітометра, «умовні µT» у компаса. */
 export const PROFILES = {
   magnetometer: { on: 30, off: 18, quiet: 8, min: 15, max: 800, unit: 'µT' },
-  compass: { on: 5, off: 3, quiet: 1.5, min: 4, max: 45, unit: '°' },
+  compass: { on: 3, off: 1.8, quiet: 0.8, min: 2.5, max: 45, unit: '°' },
   touch: { on: 0.5, off: 0.5, quiet: 0, min: 0, max: 1, unit: '' },
 };
 
@@ -208,6 +208,13 @@ export class MagnetEngine {
   #tracker = null;
   #models = {};
   #compass = { abs: null, ref: null, rel0: null };
+  /** Що вдалося отримати від браузера — для діагностики на сторінці. */
+  stats = {
+    magnetometerApi: ['UncalibratedMagnetometer', 'Magnetometer'].filter((n) => n in window),
+    magnetometerError: null,
+    orientationEvents: 0,
+    compassEvents: 0,
+  };
   #touch = { active: false, x: 0.5, y: 0.5 };
   #listeners = [];
 
@@ -309,11 +316,14 @@ export class MagnetEngine {
     // Відносна орієнтація (гіроскоп) — щоб віднімати поворот телефона.
     this.#on(window, 'deviceorientation', (e) => {
       if (e.alpha == null) return;
+      this.stats.orientationEvents++;
       if (typeof e.webkitCompassHeading === 'number') {
         // iPhone: alpha відносна, а компас приходить окремим полем (за годинниковою стрілкою).
+        this.stats.compassEvents++;
         this.#onCompass(360 - e.webkitCompassHeading);
       } else if (e.absolute) {
         // Деякі браузери шлють тут абсолютну орієнтацію — тоді гіроскопної в нас немає.
+        this.stats.compassEvents++;
         this.#onCompass(e.alpha);
         return;
       }
@@ -321,23 +331,33 @@ export class MagnetEngine {
       this.#rotation = rotationFromEuler(e.alpha, e.beta ?? 0, e.gamma ?? 0);
     });
     this.#on(window, 'deviceorientationabsolute', (e) => {
-      if (e.alpha != null) this.#onCompass(e.alpha);
+      if (e.alpha == null) return;
+      this.stats.compassEvents++;
+      this.#onCompass(e.alpha);
     });
   }
 
-  #tryMagnetometer() {
-    const Ctor = window.UncalibratedMagnetometer || window.Magnetometer;
-    if (!Ctor) return Promise.resolve(false);
+  async #tryMagnetometer() {
+    // Некалібрований кращий (Android не «звикає» до магніту), але є не на всіх телефонах.
+    for (const name of this.stats.magnetometerApi) {
+      if (await this.#tryMagnetometerCtor(window[name])) return true;
+    }
+    return false;
+  }
+
+  #tryMagnetometerCtor(Ctor) {
     return new Promise((resolve) => {
       let sensor;
       const timer = setTimeout(() => {
         sensor?.stop();
+        this.stats.magnetometerError ??= `${Ctor.name}: немає даних`;
         resolve(false);
       }, 2000);
       try {
         sensor = new Ctor({ frequency: 60 });
-        sensor.addEventListener('error', () => {
+        sensor.addEventListener('error', (e) => {
           clearTimeout(timer);
+          this.stats.magnetometerError = `${Ctor.name}: ${e.error?.name ?? 'помилка'} ${e.error?.message ?? ''}`.trim();
           resolve(false);
         });
         let first = true;
@@ -354,8 +374,9 @@ export class MagnetEngine {
           this.#onField(raw, bias);
         });
         sensor.start();
-      } catch {
+      } catch (err) {
         clearTimeout(timer);
+        this.stats.magnetometerError = `${Ctor.name}: ${err.name} ${err.message}`.trim();
         resolve(false);
       }
     });

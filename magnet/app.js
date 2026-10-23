@@ -63,6 +63,7 @@ const magnets = [...document.querySelectorAll('.mag')].map((el) => ({
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let wasClose = false;
 let lastText = 0;
+let lastFix = 0;
 
 function influence(r, cx, cy, reach) {
   const d = Math.hypot(r.x * innerWidth - cx, r.y * innerHeight - cy) / reach;
@@ -117,6 +118,10 @@ function frame(now) {
     renderText(r);
   }
   if (!ui.debugLayer.hidden) renderDebug(r, mx, my);
+  if (now - lastFix > 500) {
+    lastFix = now;
+    renderFix(r);
+  }
   requestAnimationFrame(frame);
 }
 
@@ -216,6 +221,71 @@ function renderText(r) {
   }
   ui.hint.textContent = hint;
 }
+
+// --- Чому магніт не видно і як це виправити -------------------------------------------------
+
+const UA = navigator.userAgent;
+const env = {
+  android: /Android/i.test(UA),
+  ios: /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  samsung: /SamsungBrowser/i.test(UA),
+  inApp: /; wv\)|FBAN|FBAV|Instagram|Barcelona|Telegram/i.test(UA),
+};
+const fix = {
+  box: $('fix'),
+  title: $('fix-title'),
+  body: $('fix-body'),
+  steps: $('fix-steps'),
+  flag: $('flag-row'),
+  diag: $('diag'),
+};
+
+function renderFix(r) {
+  const s = engine.stats;
+  fix.diag.textContent =
+    `Діагностика · джерело: ${r.source ?? '—'} · Magnetometer API: ${s.magnetometerApi.join(', ') || 'немає'}` +
+    `${s.magnetometerError ? ` (${s.magnetometerError})` : ''} · компас: ${s.compassEvents} · гіроскоп: ${s.orientationEvents}`;
+
+  let title = null;
+  let body = '';
+  let flagSteps = false;
+  if (r.source === 'magnetometer' || !r.source) {
+    title = null;
+  } else if (env.ios) {
+    title = 'На iPhone магнітометр недоступний';
+    body = 'Safari і інші браузери на iPhone не дають сайтам доступ до магнітометра. Лишається компас, ' +
+      'а він на магніт майже не реагує. Відкрийте сторінку на Android у Chrome.';
+  } else if (env.android && (env.samsung || env.inApp)) {
+    title = 'Відкрийте сторінку в Google Chrome';
+    body = `${env.samsung ? 'Samsung Internet' : 'Вбудований браузер застосунку'} не дає доступ до магнітометра. ` +
+      'Скопіюйте адресу цієї сторінки, відкрийте її в Chrome і ввімкніть прапорець:';
+    flagSteps = true;
+  } else if (env.android && s.magnetometerApi.length && s.magnetometerError) {
+    title = 'Chrome не дав доступ до магнітометра';
+    body = 'Натисніть значок ліворуч від адреси → Дозволи (Налаштування сайту) → «Датчики руху» → Дозволити, ' +
+      'потім перезавантажте сторінку.';
+  } else if (env.android) {
+    title = 'Увімкніть магнітометр у Chrome';
+    body = 'Без цього сторінка бачить лише компас Android, а він ігнорує сильні поля, тож магніт поруч не помічає. ' +
+      'Chrome дає доступ до магнітометра після одного прапорця:';
+    flagSteps = true;
+  }
+
+  fix.box.hidden = !title;
+  if (!title) return;
+  fix.title.textContent = title;
+  fix.body.textContent = body;
+  fix.steps.hidden = !flagSteps;
+  fix.flag.hidden = !flagSteps;
+}
+
+$('copy').addEventListener('click', (e) => {
+  const text = $('flag-url').textContent;
+  const done = () => (e.target.textContent = 'Скопійовано');
+  const fallback = () => getSelection().selectAllChildren($('flag-url'));
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+  else fallback();
+});
 
 function renderDebug(r, mx, my) {
   ui.cross.hidden = !r.present;
