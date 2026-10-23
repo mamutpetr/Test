@@ -1,4 +1,4 @@
-import { MagnetEngine, MagnetModel } from './magnet.js?v=3';
+import { MagnetEngine, MagnetModel } from './magnet.js?v=4';
 
 const engine = new MagnetEngine();
 const $ = (id) => document.getElementById(id);
@@ -268,7 +268,8 @@ function renderFix(r) {
   } else if (env.android) {
     title = 'Увімкніть магнітометр у Chrome';
     body = 'Без цього сторінка бачить лише компас Android, а він ігнорує сильні поля, тож магніт поруч не помічає. ' +
-      'Chrome дає доступ до магнітометра після одного прапорця:';
+      'Chrome дає сайтам магнітометр лише з прапорцем «Experimental Web Platform features». Він вмикає й інші ' +
+      'експериментальні функції Chrome; вимкнути його можна там само.';
     flagSteps = true;
   }
 

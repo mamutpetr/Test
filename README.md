@@ -61,7 +61,8 @@ requested → accepted → arrived → started → completed
 Звідки сторінка бере дані (вибирає найкраще доступне):
 
 1. **Магнітометр** (Generic Sensor API): повний вектор поля в µT. У Chrome на Android
-   треба увімкнути `chrome://flags/#enable-generic-sensor-extra-classes`.
+   треба увімкнути `chrome://flags/#enable-experimental-web-platform-features`
+   (окремий прапорець `#enable-generic-sensor-extra-classes` прибрали в Chrome 138).
 2. **Компас** (`deviceorientationabsolute`, на iPhone `webkitCompassHeading`): працює без
    прапорців, але бачить лише напрям, на який магніт відхилив стрілку, тому точність нижча.
 3. **Палець або миша**: якщо датчиків немає, «магнітом» стає дотик.

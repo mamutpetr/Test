@@ -2,7 +2,8 @@
 //
 // Джерела даних, від найточнішого:
 //  1. Magnetometer (Generic Sensor API) — повний вектор поля в µT. У Chrome на Android
-//     вмикається прапорцем chrome://flags/#enable-generic-sensor-extra-classes.
+//     вмикається прапорцем chrome://flags/#enable-experimental-web-platform-features
+//     (окремий #enable-generic-sensor-extra-classes прибрали в Chrome 138).
 //  2. Компас (deviceorientationabsolute / webkitCompassHeading) — лише напрям
 //     горизонтального поля, зате працює без прапорців і на iPhone.
 //  3. Палець або миша — «віртуальний магніт», щоб ефект було видно будь-де.
