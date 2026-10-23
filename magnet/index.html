@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0B0F" />
+  <title>Магнітний інтерфейс</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <style>
+    /* Один екран телефона: заголовок, форма як у відео, шкала поля, керування. Фон — «ошурки». */
+    :root {
+      --bg: #0A0B0F;
+      --surface: #15171E;
+      --line: #282B36;
+      --fg: #ECEEF4;
+      --muted: #8D91A3;
+      --north: 255 81 70;   /* червоний полюс, RGB для rgb(var(--pole) / a) */
+      --south: 74 134 255;  /* синій полюс */
+      --pole: var(--north);
+      --font-display: "Unbounded", "Arial Black", system-ui, sans-serif;
+      --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.5 var(--font-body);
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    #field {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .app {
+      position: relative;
+      max-width: 520px;
+      min-height: 100%;
+      margin: 0 auto;
+      padding-block: calc(env(safe-area-inset-top, 0px) + 14px) calc(env(safe-area-inset-bottom, 0px) + 20px);
+      padding-left: max(18px, env(safe-area-inset-left, 0px));
+      padding-right: max(18px, env(safe-area-inset-right, 0px));
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 10px; font: 500 15px var(--font-display); letter-spacing: 0.02em; }
+    .mark {
+      display: inline-flex;
+      border-radius: 6px;
+      overflow: hidden;
+      font: 700 11px/1 var(--font-mono);
+    }
+    .mark b { padding: 5px 6px; color: #fff; }
+    .mark b:first-child { background: rgb(var(--north)); }
+    .mark b:last-child { background: rgb(var(--south)); }
+
+    .pill {
+      font: 500 12px/1 var(--font-mono);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+    }
+    .pill.live { color: rgb(var(--pole)); border-color: rgb(var(--pole) / 0.5); }
+
+    .hero { display: flex; flex-direction: column; gap: 12px; margin-top: 4vh; }
+    .eyebrow { margin: 0; font: 500 11px var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+    h1 {
+      margin: 0;
+      font: 700 clamp(34px, 11vw, 52px)/1.04 var(--font-display);
+      letter-spacing: -0.02em;
+      text-wrap: balance;
+    }
+    h1 .word { display: inline-block; white-space: nowrap; }
+    h1 .ch { display: inline-block; will-change: transform; }
+    .lead { margin: 0; color: var(--muted); max-width: 36ch; }
+
+    .subscribe { display: flex; gap: 12px; align-items: center; }
+    .mag { position: relative; will-change: transform; }
+    .glow::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 2px;
+      background: radial-gradient(180px circle at var(--gx, -999px) var(--gy, -999px), rgb(var(--pole) / var(--glow, 0)), transparent 70%);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+    .field {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      box-shadow: 0 0 calc(var(--glow, 0) * 36px) rgb(var(--pole) / calc(var(--glow, 0) * 0.35));
+    }
+    .field input {
+      flex: 1;
+      min-width: 0;
+      background: none;
+      border: 0;
+      outline: none;
+      color: var(--fg);
+      font: 500 16px var(--font-body);
+      padding: 17px 22px;
+    }
+    .field input::placeholder { color: var(--muted); }
+    .field:focus-within { border-color: #4A4E5C; }
+
+    .go {
+      flex: none;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 1.5px solid #D8DAE4;
+      background: var(--surface);
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: 0 0 calc(var(--glow, 0) * 40px) rgb(var(--pole) / calc(var(--glow, 0) * 0.5));
+    }
+    .go svg { width: 24px; height: 24px; will-change: transform; }
+    .go:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 2px solid rgb(var(--south)); outline-offset: 3px; }
+
+    .thanks { margin: -10px 0 0 22px; color: rgb(var(--pole)); font-size: 14px; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      font: 500 13px var(--font-mono);
+      padding: 9px 14px;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+    }
+
+    .meter { display: flex; flex-direction: column; gap: 8px; }
+    .meter-head { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+    .meter-head output { font: 500 13px var(--font-mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+    .scale { position: relative; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+    .scale span { position: absolute; inset: 0 auto 0 0; width: 0; background: rgb(var(--pole)); border-radius: 3px; }
+    .scale-labels { display: flex; justify-content: space-between; font: 11px var(--font-mono); color: var(--muted); }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+    .btn {
+      font: 500 14px var(--font-body);
+      color: var(--fg);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 11px 16px;
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+    .btn[aria-pressed="true"] { border-color: rgb(var(--south)); color: rgb(var(--south)); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+
+    .hint { margin: 0; font-size: 13px; color: var(--muted); }
+    .help { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+    .help summary { cursor: pointer; color: var(--fg); font-weight: 500; }
+    .help ol { padding-left: 20px; margin: 10px 0 0; display: grid; gap: 6px; }
+    .help code { font: 12px var(--font-mono); color: var(--fg); word-break: break-all; }
+
+    #cross {
+      position: fixed;
+      width: 36px;
+      height: 36px;
+      margin: -18px 0 0 -18px;
+      pointer-events: none;
+      background:
+        linear-gradient(#FF4040, #FF4040) center / 2px 100% no-repeat,
+        linear-gradient(#FF4040, #FF4040) center / 100% 2px no-repeat;
+    }
+    #debug-text {
+      position: fixed;
+      left: max(12px, env(safe-area-inset-left, 0px));
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+      margin: 0;
+      padding: 8px 10px;
+      font: 11px/1.5 var(--font-mono);
+      color: #FF8A8A;
+      background: rgb(0 0 0 / 0.7);
+      border-radius: 8px;
+      pointer-events: none;
+      white-space: pre;
+    }
+
+    .training {
+      position: fixed;
+      inset: 0;
+      background: rgb(10 11 15 / 0.94);
+      z-index: 20;
+    }
+    .training-text {
+      position: absolute;
+      left: 50%;
+      top: 30%;
+      transform: translate(-50%, -50%);
+      width: min(320px, calc(100% - 120px));
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    .training-text h2 { margin: 0; font: 700 20px var(--font-display); }
+    .training-text p { margin: 0; color: var(--muted); font-size: 15px; }
+    .training-text .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+    .target {
+      position: absolute;
+      width: 72px;
+      height: 72px;
+      margin: -36px 0 0 -36px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, #fff 0 4px, transparent 5px),
+        conic-gradient(rgb(var(--south)) calc(var(--p, 0) * 1turn), rgb(var(--south) / 0.15) 0);
+      -webkit-mask: radial-gradient(circle, #000 0 5px, transparent 6px 29px, #000 30px);
+      mask: radial-gradient(circle, #000 0 5px, transparent 6px 29px, #000 30px);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .target.holding { animation: none; }
+    @keyframes pulse { 50% { transform: scale(1.15); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .target { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="field" aria-hidden="true"></canvas>
+
+  <main class="app">
+    <header class="top">
+      <div class="brand"><span class="mark" aria-hidden="true"><b>N</b><b>S</b></span>Магніт</div>
+      <span id="status" class="pill" role="status">Датчик вимкнено</span>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">Magnetic UI · у браузері</p>
+      <h1 id="title">Піднесіть магніт до телефона</h1>
+      <p class="lead">
+        Сторінка читає вбудований магнітометр і тягнеться до магніту, який ви тримаєте поруч.
+      </p>
+    </section>
+
+    <form id="form" class="subscribe" novalidate>
+      <label class="field mag glow" data-pull="14">
+        <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="Ваш email" aria-label="Ваш email" />
+      </label>
+      <button class="go mag glow" type="submit" data-pull="24" aria-label="Надіслати">
+        <svg id="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
+    </form>
+    <p id="thanks" class="thanks" hidden>Дякуємо! Ви в списку.</p>
+
+    <div class="chips">
+      <span class="chip mag glow" data-pull="10" data-reach="140">Неодим N52</span>
+      <span class="chip mag glow" data-pull="10" data-reach="140">Ферит</span>
+      <span class="chip mag glow" data-pull="10" data-reach="140">Компас</span>
+    </div>
+
+    <section class="meter" aria-label="Сила поля магніту">
+      <div class="meter-head"><span id="meter-label">Поле магніту</span><output id="value">—</output></div>
+      <div class="scale"><span id="bar"></span></div>
+      <div class="scale-labels" id="scale-labels"><span>далеко</span><span>поруч</span><span>впритул</span></div>
+    </section>
+
+    <section class="controls">
+      <button id="source" class="btn primary" type="button">Увімкнути датчик</button>
+      <button id="train" class="btn" type="button">Навчити</button>
+      <button id="calib" class="btn" type="button">Фон</button>
+      <button id="polarity" class="btn" type="button">Полярність</button>
+      <button id="debug" class="btn" type="button" aria-pressed="false">Debug</button>
+    </section>
+    <p id="hint" class="hint"></p>
+
+    <details class="help">
+      <summary>Як увімкнути точний режим</summary>
+      <ol>
+        <li>Відкрийте сторінку в Chrome на Android.</li>
+        <li>В адресному рядку введіть <code>chrome://flags/#enable-generic-sensor-extra-classes</code>, поставте <b>Enabled</b> і перезапустіть Chrome.</li>
+        <li>Поверніться сюди: у статусі з'явиться «Магнітометр» і сила поля в µT.</li>
+      </ol>
+      <p>
+        Без прапорця сторінка працює через компас: вона бачить лише, куди магніт відхилив стрілку,
+        тому відстеження грубіше. На iPhone також працює компас (Safari попросить дозвіл).
+        Якщо датчиків немає зовсім, магнітом стає палець.
+      </p>
+      <p>
+        Найкраще: телефон лежить на столі, невеликий неодимовий магніт на відстані 1–10 см.
+        Для порівняння: поле Землі — близько 50 µT, магніт упритул — тисячі µT.
+      </p>
+    </details>
+  </main>
+
+  <div id="debug-layer" hidden>
+    <div id="cross"></div>
+    <pre id="debug-text"></pre>
+  </div>
+
+  <div id="training" class="training" hidden>
+    <div id="target" class="target" hidden></div>
+    <div class="training-text">
+      <h2 id="t-title">Навчання</h2>
+      <p id="t-body"></p>
+      <div class="row">
+        <button id="t-start" class="btn primary" type="button">Почати</button>
+        <button id="t-cancel" class="btn" type="button">Скасувати</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
