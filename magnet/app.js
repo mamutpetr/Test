@@ -1,4 +1,4 @@
-import { MagnetEngine, MagnetModel } from './magnet.js';
+import { MagnetEngine, MagnetModel } from './magnet.js?v=3';
 
 const engine = new MagnetEngine();
 const $ = (id) => document.getElementById(id);
@@ -187,8 +187,9 @@ function renderText(r) {
 
   ui.bar.style.width = `${(r.strength * 100).toFixed(1)}%`;
   if (r.source === 'magnetometer') {
-    ui.meterLabel.textContent = 'Поле магніту (Земля ≈ 50 µT)';
-    ui.value.textContent = `${Math.round(r.magnitude)} µT`;
+    // Загальне поле видно завжди: якщо воно міняється біля магніту, датчик працює.
+    ui.meterLabel.textContent = `Датчик: ${Math.round(r.total ?? 0)} µT (Земля ≈ 50) · магніт`;
+    ui.value.textContent = `+${Math.round(r.magnitude)} µT`;
   } else if (r.source === 'compass') {
     ui.meterLabel.textContent = 'Відхилення компаса';
     ui.value.textContent = `${Math.round(r.magnitude)}°`;

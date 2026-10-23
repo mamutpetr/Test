@@ -149,7 +149,8 @@ export class MagnetModel {
 
 /** Пороги для кожного джерела: µT у магнітометра, «умовні µT» у компаса. */
 export const PROFILES = {
-  magnetometer: { on: 30, off: 18, quiet: 8, min: 15, max: 800, unit: 'µT' },
+  // Невеликий магнітик за кілька сантиметрів дає лише 10–30 µT, тож поріг низький.
+  magnetometer: { on: 12, off: 7, quiet: 3.5, min: 6, max: 800, unit: 'µT' },
   compass: { on: 3, off: 1.8, quiet: 0.8, min: 2.5, max: 45, unit: '°' },
   touch: { on: 0.5, off: 0.5, quiet: 0, min: 0, max: 1, unit: '' },
 };
@@ -204,6 +205,7 @@ export class MagnetEngine {
   #relAlpha = null;
   #baseline = new Baseline();
   #filtered = null;
+  #total = 0;
   #warm = { sum: [0, 0, 0], n: 0 };
   #tracker = null;
   #models = {};
@@ -352,7 +354,7 @@ export class MagnetEngine {
         sensor?.stop();
         this.stats.magnetometerError ??= `${Ctor.name}: немає даних`;
         resolve(false);
-      }, 2000);
+      }, 4000);
       try {
         sensor = new Ctor({ frequency: 60 });
         sensor.addEventListener('error', (e) => {
@@ -397,6 +399,7 @@ export class MagnetEngine {
   #onField(raw, bias) {
     const field = this.#filtered ? lerp(this.#filtered, raw, 0.35) : raw;
     this.#filtered = field;
+    this.#total = length(sub(field, bias));
     if (!this.#baseline.ready) {
       this.#warm.sum = add(this.#warm.sum, field);
       if (++this.#warm.n >= WARMUP) this.#baseline.reset(scale(this.#warm.sum, 1 / this.#warm.n), bias, this.#rotation);
@@ -478,6 +481,7 @@ export class MagnetEngine {
       delta,
       magnitude,
       unit: this.profile.unit,
+      total: this.#total,
     };
   }
 }
