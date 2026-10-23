@@ -1,4 +1,4 @@
-import { MagnetEngine, MagnetModel } from './magnet.js?v=4';
+import { MagnetEngine, MagnetModel } from './magnet.js?v=6';
 
 const engine = new MagnetEngine();
 const $ = (id) => document.getElementById(id);
@@ -180,7 +180,7 @@ function renderText(r) {
   let status = 'Датчик вимкнено';
   if (r.source === 'touch') status = isTouchDevice ? 'Палець' : 'Миша';
   else if (r.source && r.calibrating) status = 'Калібрування…';
-  else if (r.source && r.present) status = `${name} · ${Math.round(r.magnitude)} ${r.unit}`;
+  else if (r.source && r.present) status = `${name} · ${Math.round(r.magnitude)}${r.unit === "°" ? "" : " "}${r.unit}`;
   else if (r.source) status = `${name} · магніту немає`;
   ui.status.textContent = status;
   ui.status.classList.toggle('live', !!r.present);
@@ -211,7 +211,7 @@ function renderText(r) {
   if (!r.source) hint = 'Натисніть «Увімкнути датчик», покладіть телефон на стіл і візьміть магніт.';
   else if (r.source === 'touch') {
     hint = isTouchDevice
-      ? 'Датчик недоступний, тож магніт — ваш палець: ведіть ним по екрану. Як увімкнути справжній датчик — нижче.'
+      ? 'Датчик недоступний, тож магніт — ваш палець: ведіть ним по екрану.'
       : 'На комп\'ютері магнітометра немає: ведіть мишею. Відкрийте сторінку на телефоні.';
   } else if (trained) {
     hint = `Модель навчена (${engine.model.samples.length} зразків). Водіть магнітом біля телефона.`;
@@ -229,15 +229,12 @@ const UA = navigator.userAgent;
 const env = {
   android: /Android/i.test(UA),
   ios: /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
-  samsung: /SamsungBrowser/i.test(UA),
-  inApp: /; wv\)|FBAN|FBAV|Instagram|Barcelona|Telegram/i.test(UA),
 };
 const fix = {
   box: $('fix'),
   title: $('fix-title'),
   body: $('fix-body'),
-  steps: $('fix-steps'),
-  flag: $('flag-row'),
+  app: $('fix-app'),
   diag: $('diag'),
 };
 
@@ -249,45 +246,31 @@ function renderFix(r) {
 
   let title = null;
   let body = '';
-  let flagSteps = false;
+  let offerApp = false;
   if (r.source === 'magnetometer' || !r.source) {
     title = null;
   } else if (env.ios) {
     title = 'На iPhone магнітометр недоступний';
-    body = 'Safari і інші браузери на iPhone не дають сайтам доступ до магнітометра. Лишається компас, ' +
-      'а він на магніт майже не реагує. Відкрийте сторінку на Android у Chrome.';
-  } else if (env.android && (env.samsung || env.inApp)) {
-    title = 'Відкрийте сторінку в Google Chrome';
-    body = `${env.samsung ? 'Samsung Internet' : 'Вбудований браузер застосунку'} не дає доступ до магнітометра. ` +
-      'Скопіюйте адресу цієї сторінки, відкрийте її в Chrome і ввімкніть прапорець:';
-    flagSteps = true;
-  } else if (env.android && s.magnetometerApi.length && s.magnetometerError) {
-    title = 'Chrome не дав доступ до магнітометра';
-    body = 'Натисніть значок ліворуч від адреси → Дозволи (Налаштування сайту) → «Датчики руху» → Дозволити, ' +
-      'потім перезавантажте сторінку.';
+    body = 'Браузери на iPhone не дають сайтам магнітометр. Лишається компас, а він на магніт майже не реагує.';
+  } else if (env.android && /NotAllowedError/.test(s.magnetometerError ?? '')) {
+    title = 'Датчики руху заблоковані';
+    body = 'Натисніть значок ліворуч від адреси → Дозволи → «Датчики руху» → Дозволити й перезавантажте сторінку.';
   } else if (env.android) {
-    title = 'Увімкніть магнітометр у Chrome';
-    body = 'Без цього сторінка бачить лише компас Android, а він ігнорує сильні поля, тож магніт поруч не помічає. ' +
-      'Chrome дає сайтам магнітометр лише з прапорцем «Experimental Web Platform features». Він вмикає й інші ' +
-      'експериментальні функції Chrome; вимкнути його можна там само.';
-    flagSteps = true;
+    // Chrome 138+: магнітометр для сайтів вмикає лише ключ запуску --enable-features=GenericSensorExtraClasses.
+    // Прапорець Experimental Web Platform features показує API, але датчик не підключається (NotReadableError).
+    title = 'Chrome не дає сайтам магнітометр';
+    body = 'У звичайному Chrome сайти не можуть читати магнітометр: прапорці лише показують API, а сам датчик ' +
+      'Chrome не підключає. Тому сторінка працює через компас, а він реагує на магніт слабко й із затримкою. ' +
+      'У застосунків такого обмеження немає, тому й Magnetic UI з відео зроблено застосунком.';
+    offerApp = true;
   }
 
   fix.box.hidden = !title;
   if (!title) return;
   fix.title.textContent = title;
   fix.body.textContent = body;
-  fix.steps.hidden = !flagSteps;
-  fix.flag.hidden = !flagSteps;
+  fix.app.hidden = !offerApp;
 }
-
-$('copy').addEventListener('click', (e) => {
-  const text = $('flag-url').textContent;
-  const done = () => (e.target.textContent = 'Скопійовано');
-  const fallback = () => getSelection().selectAllChildren($('flag-url'));
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback);
-  else fallback();
-});
 
 function renderDebug(r, mx, my) {
   ui.cross.hidden = !r.present;
@@ -450,11 +433,8 @@ training.start.addEventListener('click', async () => {
 
 // --- Старт ---------------------------------------------------------------------------------
 
-// iPhone дає доступ до орієнтації лише після натискання, тож там чекаємо на кнопку.
-const needsGesture = typeof window.DeviceOrientationEvent?.requestPermission === 'function';
-if (needsGesture) {
-  engine.start({ preferTouch: true });
-} else {
-  startSensors();
-}
+// Пробуємо датчики одразу. Якщо браузер хоче натискання (iPhone), спершу ввімкнеться палець,
+// а кнопка «Увімкнути датчик» повторить спробу вже з жестом. Наявність requestPermission
+// нічого не каже: Chrome з Experimental Web Platform features теж її має.
+startSensors();
 requestAnimationFrame(frame);

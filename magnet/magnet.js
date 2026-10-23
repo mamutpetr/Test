@@ -1,9 +1,9 @@
 // Магнітне поле → позиція магніту на екрані.
 //
 // Джерела даних, від найточнішого:
-//  1. Magnetometer (Generic Sensor API) — повний вектор поля в µT. У Chrome на Android
-//     вмикається прапорцем chrome://flags/#enable-experimental-web-platform-features
-//     (окремий #enable-generic-sensor-extra-classes прибрали в Chrome 138).
+//  1. Magnetometer (Generic Sensor API) — повний вектор поля в µT. Chrome підключає його лише
+//     з ключем запуску --enable-features=GenericSensorExtraClasses (з Chrome 138 у chrome://flags
+//     його немає, а Experimental Web Platform features показує API без самого датчика).
 //  2. Компас (deviceorientationabsolute / webkitCompassHeading) — лише напрям
 //     горизонтального поля, зате працює без прапорців і на iPhone.
 //  3. Палець або миша — «віртуальний магніт», щоб ефект було видно будь-де.
@@ -208,6 +208,9 @@ export class MagnetEngine {
   #filtered = null;
   #total = 0;
   #warm = { sum: [0, 0, 0], n: 0 };
+  /** Останні покази. Події лише записують їх, а обробка йде щокадру в tick(): Chrome шле
+   *  події датчиків лише при зміні значень, і фільтри не мають залежати від їхньої частоти. */
+  #latest = { field: null, bias: [0, 0, 0], compass: null };
   #tracker = null;
   #models = {};
   #compass = { abs: null, ref: null, rel0: null };
@@ -267,12 +270,12 @@ export class MagnetEngine {
     this.#warm = { sum: [0, 0, 0], n: 0 };
     this.#compass.ref = null;
     if (this.#tracker) this.#tracker.present = false;
-    this.reading = { ...this.reading, calibrating: this.source !== 'touch', present: false };
+    this.reading = { ...this.reading, source: this.source, calibrating: this.source !== 'touch', present: false };
   }
 
   /**
-   * Вмикає найкраще доступне джерело. Викликати з обробника натискання: iPhone дає доступ
-   * до орієнтації лише після жесту користувача.
+   * Вмикає найкраще доступне джерело. iPhone дає доступ до орієнтації лише після жесту
+   * користувача, тож там start() варто повторити з обробника натискання.
    */
   async start({ preferTouch = false } = {}) {
     this.stop();
@@ -289,6 +292,7 @@ export class MagnetEngine {
   stop() {
     for (const off of this.#listeners) off();
     this.#listeners = [];
+    this.#latest = { field: null, bias: [0, 0, 0], compass: null };
     this.source = null;
   }
 
@@ -323,11 +327,11 @@ export class MagnetEngine {
       if (typeof e.webkitCompassHeading === 'number') {
         // iPhone: alpha відносна, а компас приходить окремим полем (за годинниковою стрілкою).
         this.stats.compassEvents++;
-        this.#onCompass(360 - e.webkitCompassHeading);
+        this.#latest.compass = 360 - e.webkitCompassHeading;
       } else if (e.absolute) {
         // Деякі браузери шлють тут абсолютну орієнтацію — тоді гіроскопної в нас немає.
         this.stats.compassEvents++;
-        this.#onCompass(e.alpha);
+        this.#latest.compass = e.alpha;
         return;
       }
       this.#relAlpha = e.alpha;
@@ -336,7 +340,7 @@ export class MagnetEngine {
     this.#on(window, 'deviceorientationabsolute', (e) => {
       if (e.alpha == null) return;
       this.stats.compassEvents++;
-      this.#onCompass(e.alpha);
+      this.#latest.compass = e.alpha;
     });
   }
 
@@ -371,10 +375,8 @@ export class MagnetEngine {
             this.#listeners.push(() => sensor.stop());
             resolve(true);
           }
-          if (this.source !== 'magnetometer') return;
-          const raw = [sensor.x, sensor.y, sensor.z];
-          const bias = 'xBias' in sensor ? [sensor.xBias, sensor.yBias, sensor.zBias] : [0, 0, 0];
-          this.#onField(raw, bias);
+          this.#latest.field = [sensor.x, sensor.y, sensor.z];
+          this.#latest.bias = 'xBias' in sensor ? [sensor.xBias, sensor.yBias, sensor.zBias] : [0, 0, 0];
         });
         sensor.start();
       } catch (err) {
@@ -389,7 +391,7 @@ export class MagnetEngine {
     return new Promise((resolve) => {
       const started = performance.now();
       const check = () => {
-        if (this.#compass.abs !== null) resolve(true);
+        if (this.#latest.compass !== null) resolve(true);
         else if (performance.now() - started > 1500) resolve(false);
         else setTimeout(check, 100);
       };
@@ -417,12 +419,10 @@ export class MagnetEngine {
     const unit = (deg) => [Math.sin(rad(deg)), Math.cos(rad(deg)), 0];
     const measured = unit(absAlpha);
     c.abs = c.abs ? normalize(lerp(c.abs, measured, 0.4)) : measured;
-    if (this.source !== 'compass') return;
 
     const turn = this.#relAlpha !== null && c.rel0 !== null ? this.#relAlpha - c.rel0 : 0;
     if (c.ref === null) {
-      this.#warm.n++;
-      if (this.#warm.n >= 15) {
+      if (++this.#warm.n >= WARMUP) {
         c.ref = Math.atan2(c.abs[0], c.abs[1]) * (180 / Math.PI);
         c.rel0 = this.#relAlpha;
       }
@@ -456,8 +456,10 @@ export class MagnetEngine {
     this.#on(document.documentElement, 'mouseleave', () => (this.#touch.active = false));
   }
 
-  /** Викликати щокадру: для пальця стан оновлюється тут, для датчиків — у їхніх подіях. */
+  /** Викликати щокадру: тут обробляються останні покази датчика або дотик. */
   tick() {
+    if (this.source === 'magnetometer' && this.#latest.field) this.#onField(this.#latest.field, this.#latest.bias);
+    if (this.source === 'compass' && this.#latest.compass !== null) this.#onCompass(this.#latest.compass);
     if (this.source !== 'touch') return this.reading;
     const t = this.#tracker;
     const target = this.#touch.active ? 1 : 0;
