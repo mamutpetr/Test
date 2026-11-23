@@ -1,0 +1,310 @@
+// SWAPLY — PostgreSQL schema.
+// Money columns use Decimal(38, 18) — never floats. See DATABASE.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum IntegrationStatus {
+  NOT_CONFIGURED // adapter exists, keys/partner approval missing
+  ACTIVE
+  DEGRADED
+  DISABLED
+  DEMO
+}
+
+enum AssetType {
+  CRYPTO
+  FIAT
+}
+
+enum CommissionModel {
+  REVENUE_SHARE
+  PARTNER_EXTRA_FEE
+  AFFILIATE_REFERRAL
+}
+
+enum ExchangeStatus {
+  CREATED
+  AWAITING_DEPOSIT
+  CONFIRMING
+  EXCHANGING
+  SENDING
+  COMPLETED
+  FAILED
+  EXPIRED
+  REFUNDED
+  VERIFICATION_REQUIRED
+  UNKNOWN
+}
+
+enum RevenueStatus {
+  EXPECTED // derived from tracked activity, not yet confirmed by partner
+  CONFIRMED // confirmed by partner report/API
+  PAID // payout received
+  REJECTED
+}
+
+enum AdminRole {
+  OWNER
+  ADMIN
+  ANALYST
+}
+
+model Provider {
+  id                String            @id // e.g. "changenow"
+  name              String
+  enabled           Boolean           @default(false)
+  integrationStatus IntegrationStatus @default(NOT_CONFIGURED)
+  /// Lower number = tried first when technical fallback ordering matters. Never affects ranking.
+  priority          Int               @default(100)
+  capabilities      Json              @default("{}")
+  /// Admin-configured partner extra fee in percent, only where the partner allows it. Informational
+  /// unless the adapter can pass it to the API; see API_INTEGRATIONS.md.
+  extraFeePercent   Decimal?          @db.Decimal(10, 4)
+  commissionModel   CommissionModel?
+  commissionRate    Decimal?          @db.Decimal(10, 6)
+  commissionCurrency String?
+  websiteUrl        String?
+  termsUrl          String?
+  supportUrl        String?
+  lastHealthAt      DateTime?
+  lastHealthOk      Boolean?
+  lastHealthMessage String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  assets   ProviderAsset[]
+  quotes   Quote[]
+  clicks   ReferralClick[]
+  exchanges Exchange[]
+  revenue  PartnerRevenue[]
+  calls    ProviderCallLog[]
+}
+
+model Asset {
+  id        String    @id // e.g. "USDT", "UAH"
+  symbol    String
+  name      String
+  type      AssetType
+  precision Int
+  createdAt DateTime  @default(now())
+
+  providerAssets ProviderAsset[]
+}
+
+model Network {
+  id              String  @id // e.g. "TRON", "ETHEREUM", "CARD_UA"
+  name            String
+  chainIdentifier String? // e.g. EVM chain id "1"; null for non-EVM / fiat rails
+  isFiatRail      Boolean @default(false)
+
+  providerAssets ProviderAsset[]
+}
+
+model ProviderAsset {
+  id                String   @id @default(cuid())
+  providerId        String
+  assetId           String
+  networkId         String
+  providerAssetCode String // provider's ticker, e.g. "usdt"
+  providerNetworkCode String? // provider's network code, e.g. "trx"
+  enabled           Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  asset    Asset    @relation(fields: [assetId], references: [id])
+  network  Network  @relation(fields: [networkId], references: [id])
+
+  @@unique([providerId, assetId, networkId])
+}
+
+model SearchSession {
+  id        String   @id @default(cuid())
+  /// Normalised request (assets, networks, amount). No IP, no wallet addresses.
+  request   Json
+  mode      String // "demo" | "live"
+  quoteCount Int     @default(0)
+  errorCount Int     @default(0)
+  durationMs Int?
+  createdAt DateTime @default(now())
+
+  quotes Quote[]
+  clicks ReferralClick[]
+
+  @@index([createdAt])
+}
+
+model Quote {
+  id                 String   @id @default(cuid())
+  searchSessionId    String?
+  providerId         String
+  executingPartner   String? // e.g. Swapzone adapter "changehero"
+  route              String // "USDT:TRON->BTC:BITCOIN"
+  sendAmount         Decimal  @db.Decimal(38, 18)
+  receiveAmount      Decimal  @db.Decimal(38, 18)
+  rateType           String
+  fees               Json
+  providerReference  String?
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+
+  provider      Provider       @relation(fields: [providerId], references: [id])
+  searchSession SearchSession? @relation(fields: [searchSessionId], references: [id], onDelete: SetNull)
+  clicks        ReferralClick[]
+
+  @@index([createdAt])
+}
+
+model ReferralClick {
+  id              String   @id @default(cuid())
+  providerId      String
+  searchSessionId String?
+  quoteId         String?
+  route           String
+  sendAmount      Decimal  @db.Decimal(38, 18)
+  receiveAmountShown Decimal @db.Decimal(38, 18)
+  redirectHost    String
+  mode            String
+  createdAt       DateTime @default(now())
+
+  provider      Provider       @relation(fields: [providerId], references: [id])
+  searchSession SearchSession? @relation(fields: [searchSessionId], references: [id], onDelete: SetNull)
+  quote         Quote?         @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([providerId, createdAt])
+}
+
+model Exchange {
+  id                 String         @id @default(cuid())
+  providerId         String
+  externalId         String?
+  idempotencyKey     String         @unique
+  /// sha256 of the normalised create request; same key + different body => 422
+  requestHash        String
+  status             ExchangeStatus @default(CREATED)
+  providerStatus     String?
+  /// true only when status was reported by the partner (never inferred).
+  statusFromProvider Boolean        @default(false)
+  mode               String
+  fromAsset          String
+  fromNetwork        String
+  toAsset            String
+  toNetwork          String
+  sendAmount         Decimal        @db.Decimal(38, 18)
+  expectedReceive    Decimal        @db.Decimal(38, 18)
+  actualReceive      Decimal?       @db.Decimal(38, 18)
+  /// Deposit details issued by the PARTNER. SWAPLY never generates these.
+  payinAddress       String?
+  payinExtraId       String?
+  payoutAddress      String
+  payoutExtraId      String?
+  refundAddress      String?
+  payTill            DateTime?
+  lastCheckedAt      DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  provider Provider        @relation(fields: [providerId], references: [id])
+  revenue  PartnerRevenue[]
+
+  @@unique([providerId, externalId])
+  @@index([status])
+}
+
+model PartnerRevenue {
+  id                    String          @id @default(cuid())
+  providerId            String
+  exchangeId            String?
+  providerTransactionId String?
+  commissionModel       CommissionModel
+  commissionRate        Decimal?        @db.Decimal(10, 6)
+  currency              String
+  volume                Decimal?        @db.Decimal(38, 18)
+  expectedAmount        Decimal?        @db.Decimal(38, 18)
+  confirmedAmount       Decimal?        @db.Decimal(38, 18)
+  paidAmount            Decimal?        @db.Decimal(38, 18)
+  status                RevenueStatus   @default(EXPECTED)
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  reconciledAt          DateTime?
+  importBatchId         String?
+  note                  String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  provider Provider  @relation(fields: [providerId], references: [id])
+  exchange Exchange? @relation(fields: [exchangeId], references: [id], onDelete: SetNull)
+
+  @@unique([providerId, providerTransactionId, commissionModel])
+  @@index([status])
+}
+
+model ProviderCallLog {
+  id         String   @id @default(cuid())
+  providerId String
+  operation  String
+  ok         Boolean
+  durationMs Int
+  errorCode  String?
+  httpStatus Int?
+  createdAt  DateTime @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, createdAt])
+  @@index([createdAt])
+}
+
+/// Privacy-conscious product analytics: no IP, no user agent, no addresses.
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  name       String // search_initiated | quotes_displayed | provider_selected | referral_redirect | exchange_confirmed | revenue_confirmed
+  providerId String?
+  sessionRef String?
+  properties Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([name, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String
+  action    String
+  target    String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(ADMIN)
+  disabled     Boolean   @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  sessions AdminSession[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  /// sha256 of the session token; the raw token only lives in the HttpOnly cookie.
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

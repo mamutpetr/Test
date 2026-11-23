@@ -1,0 +1,51 @@
+name: SWAPLY CI
+
+on:
+  push:
+    paths: ["swaply/**", ".github/workflows/swaply-ci.yml"]
+  pull_request:
+    paths: ["swaply/**", ".github/workflows/swaply-ci.yml"]
+
+defaults:
+  run:
+    working-directory: swaply
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: swaply, POSTGRES_PASSWORD: swaply, POSTGRES_DB: swaply }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U swaply" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      APP_MODE: demo
+      DATABASE_URL: postgresql://swaply:swaply@localhost:5432/swaply?schema=public
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: ci-only-password-123
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: swaply/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma migrate deploy
+      - run: npm run db:seed
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: swaply/test-results, retention-days: 7 }
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target runner -t swaply:ci .

@@ -1,0 +1,66 @@
+# Local environment: `docker compose up --build` → http://localhost:3000
+name: swaply
+
+x-app-env: &app-env
+  APP_MODE: ${APP_MODE:-demo}
+  APP_URL: ${APP_URL:-http://localhost:3000}
+  DATABASE_URL: postgresql://swaply:swaply@postgres:5432/swaply?schema=public
+  REDIS_URL: redis://redis:6379
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please-123}
+  CHANGENOW_API_KEY: ${CHANGENOW_API_KEY:-}
+  CHANGENOW_REFERRAL_URL: ${CHANGENOW_REFERRAL_URL:-}
+  SWAPZONE_API_KEY: ${SWAPZONE_API_KEY:-}
+  SWAPZONE_REF_ID: ${SWAPZONE_REF_ID:-}
+  CHANGELLY_PRIVATE_KEY: ${CHANGELLY_PRIVATE_KEY:-}
+  CHANGELLY_REFERRAL_URL: ${CHANGELLY_REFERRAL_URL:-}
+  EMBEDDED_EXCHANGE_ENABLED: ${EMBEDDED_EXCHANGE_ENABLED:-false}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: swaply
+      POSTGRES_PASSWORD: swaply
+      POSTGRES_DB: swaply
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swaply -d swaply"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  migrate:
+    build: { context: ., target: tools }
+    environment: *app-env
+    command: ["sh", "-c", "npx prisma migrate deploy && npm run db:seed"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  app:
+    build: { context: ., target: runner }
+    environment: *app-env
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: { context: ., target: tools }
+    environment: *app-env
+    command: ["npm", "run", "worker"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:

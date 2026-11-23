@@ -1,0 +1,96 @@
+[
+ {
+  "name": "Bitcoin",
+  "ticker": "btc",
+  "network": "BTC",
+  "defaultAmount": 0.01,
+  "smartContract": null,
+  "alias": [
+   "btcbtc"
+  ]
+ },
+ {
+  "name": "Ethereum",
+  "ticker": "eth",
+  "network": "ETH",
+  "defaultAmount": 0.5,
+  "smartContract": null,
+  "alias": [
+   "etheth"
+  ]
+ },
+ {
+  "name": "Dogecoin",
+  "ticker": "doge",
+  "network": "DOGE",
+  "defaultAmount": 40000,
+  "smartContract": null,
+  "alias": [
+   "dogedoge"
+  ]
+ },
+ {
+  "name": "Litecoin",
+  "ticker": "ltc",
+  "network": "LTC",
+  "defaultAmount": 1.5,
+  "smartContract": null,
+  "alias": [
+   "ltcltc"
+  ]
+ },
+ {
+  "name": "Tether",
+  "ticker": "usdt",
+  "network": "TRX",
+  "defaultAmount": 110,
+  "smartContract": null,
+  "alias": [
+   "usdttrc20",
+   "usdttrx"
+  ]
+ },
+ {
+  "name": "TRON",
+  "ticker": "trx",
+  "network": "TRX",
+  "defaultAmount": 6000,
+  "smartContract": null,
+  "alias": [
+   "trxtrx"
+  ]
+ },
+ {
+  "name": "USD Coin",
+  "ticker": "usdc",
+  "network": "ETH",
+  "defaultAmount": 200,
+  "smartContract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  "alias": [
+   "usdceth",
+   "usdcerc20"
+  ]
+ },
+ {
+  "name": "Solana",
+  "ticker": "sol",
+  "network": "SOL",
+  "defaultAmount": 35,
+  "smartContract": null,
+  "alias": [
+   "solsol"
+  ]
+ },
+ {
+  "name": "GRAM",
+  "ticker": "ton",
+  "network": "TON",
+  "defaultAmount": 2000,
+  "smartContract": null,
+  "alias": [
+   "toncoin",
+   "tonton",
+   "ton"
+  ]
+ }
+]
