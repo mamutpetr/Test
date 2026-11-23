@@ -1,0 +1,52 @@
+# Render Blueprint for SWAPLY (New → Blueprint → select this repo). See swaply/DEPLOYMENT.md.
+services:
+  - type: web
+    name: swaply
+    runtime: docker
+    rootDir: swaply
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/v1/health
+    preDeployCommand: npx prisma migrate deploy && npx tsx prisma/seed.ts
+    envVars:
+      - { key: APP_MODE, value: demo }
+      - { key: APP_URL, sync: false }
+      - { key: DATABASE_URL, fromDatabase: { name: swaply-db, property: connectionString } }
+      - { key: REDIS_URL, fromService: { type: keyvalue, name: swaply-redis, property: connectionString } }
+      - { key: ADMIN_EMAIL, sync: false }
+      - { key: ADMIN_PASSWORD, sync: false }
+      - { key: CHANGENOW_API_KEY, sync: false }
+      - { key: CHANGENOW_REFERRAL_URL, sync: false }
+      - { key: SWAPZONE_API_KEY, sync: false }
+      - { key: SWAPZONE_REF_ID, sync: false }
+      - { key: EMBEDDED_EXCHANGE_ENABLED, value: "false" }
+  - type: worker
+    name: swaply-worker
+    runtime: docker
+    rootDir: swaply
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: npm run worker
+    plan: starter
+    envVars:
+      - fromGroup: swaply-shared
+      - { key: DATABASE_URL, fromDatabase: { name: swaply-db, property: connectionString } }
+      - { key: APP_MODE, value: demo }
+      - { key: CHANGENOW_API_KEY, sync: false }
+      - { key: SWAPZONE_API_KEY, sync: false }
+  - type: keyvalue
+    name: swaply-redis
+    plan: free
+    ipAllowList: []
+
+envVarGroups:
+  - name: swaply-shared
+    envVars:
+      - { key: LOG_LEVEL, value: info }
+
+databases:
+  - name: swaply-db
+    databaseName: swaply
+    user: swaply
+    plan: basic-256mb
