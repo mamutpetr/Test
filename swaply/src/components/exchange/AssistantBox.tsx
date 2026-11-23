@@ -44,12 +44,12 @@ export function AssistantBox({ t, onApply }: { t: Dictionary; onApply: (i: Inten
       </button>
     );
   return (
-    <div className="mt-3 rounded-2xl border border-line p-3">
+    <div className="glass-inset mt-3 rounded-[22px] p-3">
       <div className="flex gap-2">
         <input value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder={t.form.describePlaceholder} aria-label={t.form.describe} data-testid="assistant-input"
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (text.trim().length > 1) void run(); } }}
-          className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-3 text-[16px] outline-none focus:border-accent sm:text-sm" />
-        <button type="button" onClick={() => void run()} disabled={busy || text.trim().length < 2} data-testid="assistant-apply" className="h-10 rounded-xl bg-surface-3 px-3 text-sm font-medium disabled:opacity-50">
+          className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-transparent px-3 text-[16px] outline-none focus:border-accent sm:text-sm" />
+        <button type="button" onClick={() => void run()} disabled={busy || text.trim().length < 2} data-testid="assistant-apply" className="btn-liquid h-10 rounded-xl px-3 text-sm font-medium disabled:opacity-50">
           {t.form.describeApply}
         </button>
       </div>

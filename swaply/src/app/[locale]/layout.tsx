@@ -8,6 +8,7 @@ import { isLocale, LOCALES } from "@/i18n/config";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Providers } from "@/components/Providers";
+import { Aurora } from "@/components/ui/Aurora";
 import { env } from "@/lib/env";
 
 export function generateStaticParams() {
@@ -51,9 +52,10 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   return (
     <html lang={locale} className={theme === "dark" ? "dark" : ""} suppressHydrationWarning>
       <body className="font-sans antialiased">
+        <Aurora />
         <Providers>
           {isDemo && (
-            <div role="status" className="bg-warning-soft px-4 py-2 text-center text-xs font-medium text-warning" data-testid="demo-banner">
+            <div role="status" className="bg-warning-soft px-4 py-2 text-center text-xs font-medium text-warning backdrop-blur-md" data-testid="demo-banner">
               {t.demo.banner}
             </div>
           )}

@@ -36,8 +36,8 @@ test.describe("SWAPLY demo mode", () => {
     const before = await page.getByTestId("offer-card").count();
 
     await page.getByTestId("rate-filter-fixed").click();
-    const fixedCount = await page.getByTestId("offer-card").count();
-    expect(fixedCount).toBeLessThan(before);
+    // cards animate out; wait until the exit animation has removed them
+    await expect.poll(() => page.getByTestId("offer-card").count()).toBeLessThan(before);
     for (const card of await page.getByTestId("offer-card").all()) await expect(card).toContainText("Фіксований");
 
     await page.getByTestId("rate-filter-any").click();

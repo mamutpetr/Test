@@ -9,7 +9,7 @@ import type { Dictionary } from "@/i18n";
 import { ASSETS, COUNTRIES, NETWORKS } from "@/lib/catalog";
 import { formatAmount } from "@/lib/format";
 import { applyFilters, lossVsBest, rankQuotes, type SortMode } from "@/server/aggregator/ranking";
-import { Button } from "../ui/Button";
+import { AnimatedAmount } from "../ui/AnimatedAmount";
 import { cn } from "../ui/cn";
 import { AssetButton, AssetSheet, NetworkChips } from "./AssetPicker";
 import { ConfirmRedirect } from "./ConfirmRedirect";
@@ -58,6 +58,7 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
   const [noKyc, setNoKyc] = useState(false);
   const [selected, setSelected] = useState<NormalizedQuote | null>(null);
   const [showProviders, setShowProviders] = useState(false);
+  const [spin, setSpin] = useState(0);
   const now = useNow();
 
   const search = useMutation({ mutationFn: fetchQuotes });
@@ -95,6 +96,7 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
 
   const swap = () => {
     if (ASSETS[v.toAsset]?.kind === "fiat") return;
+    setSpin((x) => x + 180);
     setValue("fromAsset", v.toAsset);
     setValue("fromNetwork", v.toNetwork);
     setValue("toAsset", v.fromAsset);
@@ -108,14 +110,15 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
   }, [data, rateFilter, noKyc, sort]);
   const bestByAmount = useMemo(() => (visible.length ? rankQuotes(visible, "best")[0]! : null), [visible]);
 
+  const bestShown = bestByAmount && data && data.request.toAsset === v.toAsset && data.request.toNetwork === v.toNetwork ? bestByAmount.estimatedReceiveAmount : null;
   const amountError = formState.errors.amount?.message;
   const formError = formState.errors.toAsset?.message ?? formState.errors.fromAsset?.message;
 
   return (
     <div className="mx-auto w-full max-w-xl">
-      <form onSubmit={submit} noValidate className="rounded-[28px] border border-line bg-surface p-3 shadow-card sm:p-4" data-testid="exchange-form">
+      <form onSubmit={submit} noValidate className="glass rounded-[34px] p-2.5 sm:p-3.5" data-testid="exchange-form">
         {/* Send */}
-        <div className="rounded-3xl bg-surface-2 p-4">
+        <div className="glass-inset rounded-[26px] p-4 transition-shadow focus-within:shadow-[0_0_0_2px_var(--accent-soft)]">
           <label htmlFor="amount" className="text-sm text-muted">{t.form.give}</label>
           <div className="mt-1 flex items-center gap-3">
             <input
@@ -127,7 +130,7 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
               placeholder="0"
               aria-invalid={!!amountError}
               {...register("amount")}
-              className="num min-w-0 flex-1 bg-transparent text-[34px] font-semibold outline-none placeholder:text-faint sm:text-[40px]"
+              className="num min-w-0 flex-1 bg-transparent text-[38px] font-semibold tracking-tight outline-none placeholder:text-faint sm:text-[44px]"
             />
             <AssetButton assetId={v.fromAsset} networkId={v.fromNetwork} onClick={() => setPicker("from")} testId="from-asset" locale={locale} />
           </div>
@@ -136,27 +139,30 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
         </div>
 
         <div className="relative z-10 -my-3 flex justify-center">
-          <button type="button" onClick={swap} aria-label={t.form.swap} disabled={toIsFiat} className="grid h-11 w-11 place-items-center rounded-2xl border-4 border-surface bg-surface-3 text-muted transition hover:rotate-180 hover:text-ink disabled:opacity-40">
+          <motion.button type="button" onClick={swap} aria-label={t.form.swap} disabled={toIsFiat} animate={{ rotate: spin }} whileTap={{ scale: 0.88 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}
+            className="glass grid h-12 w-12 place-items-center rounded-full text-ink disabled:opacity-40">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden><path d="M5 2v12M5 14l-3-3M11 14V2M11 2l3 3" stroke="currentColor" strokeWidth="1.7" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
+          </motion.button>
         </div>
 
         {/* Receive */}
-        <div className="rounded-3xl bg-surface-2 p-4">
+        <div className="glass-inset rounded-[26px] p-4">
           <div className="text-sm text-muted">{t.form.get}</div>
           <div className="mt-1 flex items-center gap-3">
-            <div className="num min-w-0 flex-1 truncate text-[34px] font-semibold text-muted sm:text-[40px]" data-testid="best-receive">
-              {bestByAmount && data && data.request.toAsset === v.toAsset && data.request.toNetwork === v.toNetwork
-                ? formatAmount(bestByAmount.estimatedReceiveAmount, ASSETS[v.toAsset]!.precision, locale)
-                : "—"}
-            </div>
+            <AnimatedAmount
+              testId="best-receive"
+              className={cn("num min-w-0 flex-1 truncate font-semibold tracking-tight", sizeFor(bestShown))}
+              value={bestShown}
+              precision={ASSETS[v.toAsset]!.precision}
+              locale={locale}
+            />
             <AssetButton assetId={v.toAsset} networkId={v.toNetwork} onClick={() => setPicker("to")} testId="to-asset" locale={locale} />
           </div>
           <NetworkChips assetId={v.toAsset} value={v.toNetwork} onChange={(n) => setValue("toNetwork", n)} label={toIsFiat ? t.form.payout : t.form.network} locale={locale} testId="to-network" />
           {toIsFiat && (
             <div className="mt-3">
               <label htmlFor="country" className="mb-1.5 block text-xs text-muted">{t.form.country}</label>
-              <select id="country" {...register("country")} className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm outline-none focus:border-accent">
+              <select id="country" {...register("country")} className="glass-inset h-11 w-full rounded-2xl px-3 text-sm outline-none focus:border-accent">
                 {COUNTRIES.map((c) => <option key={c} value={c}>{t.countries[c]}</option>)}
               </select>
             </div>
@@ -168,9 +174,10 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
           <p className="mt-3 flex gap-2 px-1 text-xs text-faint"><span aria-hidden>ⓘ</span>{t.form.networkWarning}</p>
         )}
 
-        <Button type="submit" size="lg" className="mt-3 w-full" disabled={search.isPending} data-testid="search-button">
+        <motion.button type="submit" disabled={search.isPending} data-testid="search-button" whileTap={{ scale: 0.97 }} whileHover={{ y: -1 }} transition={{ type: "spring", stiffness: 400, damping: 22 }}
+          className="btn-liquid mt-3 flex h-[58px] w-full items-center justify-center gap-2 rounded-[22px] text-[16px] font-semibold disabled:opacity-70">
           {search.isPending ? (<><span className="h-4 w-4 animate-spin rounded-full border-2 border-on-accent border-t-transparent" /> {t.form.searching}</>) : t.form.search}
-        </Button>
+        </motion.button>
         <AssistantBox t={t} onApply={applyIntent} />
       </form>
 
@@ -181,7 +188,7 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
       <section aria-live="polite" className="mt-8" data-testid="results">
         {search.isPending && (
           <ul className="space-y-3">
-            {[0, 1, 2].map((i) => <li key={i} className="h-36 animate-pulse rounded-[var(--radius-card)] border border-line bg-surface" />)}
+            {[0, 1, 2].map((i) => <li key={i} className="glass skeleton-glass h-40 rounded-[28px]" style={{ opacity: 1 - i * 0.22 }} />)}
           </ul>
         )}
 
@@ -195,7 +202,7 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
             </div>
             <div className="mb-4 flex flex-wrap gap-2">
               <Segmented value={rateFilter} onChange={(s) => setRateFilter(s as typeof rateFilter)} options={[["any", t.results.filterAll], ["fixed", t.results.filterFixed], ["floating", t.results.filterFloating]]} testId="rate-filter" />
-              <button type="button" onClick={() => setNoKyc((x) => !x)} aria-pressed={noKyc} data-testid="filter-nokyc" className={cn("rounded-xl border px-3 py-1.5 text-sm transition", noKyc ? "border-accent bg-accent-soft" : "border-line text-muted hover:text-ink")}>
+              <button type="button" onClick={() => setNoKyc((x) => !x)} aria-pressed={noKyc} data-testid="filter-nokyc" className={cn("glass rounded-full px-3.5 py-1.5 text-sm transition active:scale-95", noKyc ? "!border-accent/60 text-ink shadow-[0_0_0_3px_var(--accent-soft)]" : "text-muted hover:text-ink")}>
                 {t.results.filterNoKyc}
               </button>
             </div>
@@ -222,7 +229,7 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
                 {showProviders && (
                   <motion.ul initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-2 space-y-1 overflow-hidden text-sm" data-testid="provider-status">
                     {data.providers.map((p) => (
-                      <li key={p.providerId} className="flex justify-between rounded-xl bg-surface px-3 py-2">
+                      <li key={p.providerId} className="glass flex justify-between rounded-2xl px-3.5 py-2.5">
                         <span>{p.providerName}</span>
                         <span className={cn(p.status === "ok" ? "text-positive" : p.status === "error" ? "text-danger" : "text-muted")}>{t.results.providerStatus[p.status]}</span>
                       </li>
@@ -240,10 +247,18 @@ export function ExchangeWidget({ t, locale, defaults }: { t: Dictionary; locale:
   );
 }
 
+/** Shrinks big numbers so they never truncate next to the asset pill on phones. */
+function sizeFor(value: string | null) {
+  const len = value ? value.split(".")[0]!.length + Math.min(2, (value.split(".")[1] ?? "").length) : 1;
+  if (len >= 9) return "text-[26px] sm:text-[36px]";
+  if (len >= 7) return "text-[30px] sm:text-[40px]";
+  return "text-[38px] sm:text-[44px]";
+}
+
 function EmptyState({ data, t, locale, filtered, onUseMin }: { data: AggregateResult; t: Dictionary; locale: "uk" | "en"; filtered: boolean; onUseMin: (m: string) => void }) {
   const reason = filtered ? "filtered" : data.emptyReason ?? "all_providers_failed";
   return (
-    <div className="rounded-[var(--radius-card)] border border-dashed border-line-strong bg-surface p-6 text-center" data-testid="empty-state" data-reason={reason}>
+    <div className="glass rounded-[28px] p-6 text-center" data-testid="empty-state" data-reason={reason}>
       <p className="text-muted">{t.results.empty[reason]}</p>
       {data.suggestedMinAmount && !filtered && (
         <p className="mt-3 text-sm">
@@ -257,11 +272,12 @@ function EmptyState({ data, t, locale, filtered, onUseMin }: { data: AggregateRe
 
 function Segmented({ value, onChange, options, testId }: { value: string; onChange: (v: string) => void; options: Array<[string, string]>; testId: string }) {
   return (
-    <div role="radiogroup" className="inline-flex rounded-xl border border-line bg-surface p-0.5" data-testid={testId}>
+    <div role="radiogroup" className="glass inline-flex rounded-full p-1" data-testid={testId}>
       {options.map(([val, label]) => (
         <button key={val} type="button" role="radio" aria-checked={value === val} data-testid={`${testId}-${val}`} onClick={() => onChange(val)}
-          className={cn("rounded-[10px] px-3 py-1.5 text-sm transition", value === val ? "bg-surface-3 font-medium text-ink" : "text-muted hover:text-ink")}>
-          {label}
+          className={cn("relative rounded-full px-3.5 py-1.5 text-sm transition-colors", value === val ? "font-medium text-ink" : "text-muted hover:text-ink")}>
+          {value === val && <motion.span layoutId={`seg-${testId}`} className="glass-inset absolute inset-0 rounded-full !bg-ink/10" transition={{ type: "spring", stiffness: 420, damping: 32 }} />}
+          <span className="relative">{label}</span>
         </button>
       ))}
     </div>

@@ -146,3 +146,154 @@ input::-webkit-inner-spin-button {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ───────────────── Liquid glass ─────────────────
+   Translucent, refractive surfaces over a slow aurora. Glass = blur + saturation + a specular
+   top edge + a soft inner rim. Everything degrades to solid surfaces without backdrop-filter. */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-2: rgba(255, 255, 255, 0.34);
+  --glass-inset: rgba(255, 255, 255, 0.55);
+  --glass-rim: rgba(255, 255, 255, 0.85);
+  --glass-edge: rgba(16, 18, 30, 0.08);
+  --glass-spec: rgba(255, 255, 255, 0.95);
+  --glass-drop: 0 1px 1px rgba(16, 18, 30, 0.04), 0 18px 50px -18px rgba(60, 40, 160, 0.28);
+  --aurora-1: #b4a6ff;
+  --aurora-2: #7de8c4;
+  --aurora-3: #ffb3d6;
+  --aurora-opacity: 0.55;
+}
+.dark {
+  --glass-bg: rgba(30, 32, 46, 0.52);
+  --glass-bg-2: rgba(16, 17, 26, 0.38);
+  --glass-inset: rgba(255, 255, 255, 0.045);
+  --glass-rim: rgba(255, 255, 255, 0.16);
+  --glass-edge: rgba(255, 255, 255, 0.07);
+  --glass-spec: rgba(255, 255, 255, 0.28);
+  --glass-drop: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 30px 80px -24px rgba(0, 0, 0, 0.7);
+  --aurora-1: #6b54ff;
+  --aurora-2: #13b88a;
+  --aurora-3: #c2337a;
+  --aurora-opacity: 0.42;
+}
+
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(150deg, var(--glass-bg), var(--glass-bg-2));
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-rim), inset 0 0 0 1px rgba(255, 255, 255, 0.02), var(--glass-drop);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+}
+/* specular sheen: a soft light spot on the upper-left, like curved glass catching light */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(120% 60% at 15% 0%, var(--glass-spec), transparent 45%),
+    radial-gradient(80% 40% at 100% 100%, rgba(255, 255, 255, 0.06), transparent 60%);
+  opacity: 0.55;
+}
+.glass-inset {
+  background: var(--glass-inset);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-edge);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--surface); }
+}
+
+/* Aurora: three slow blobs behind everything */
+.aurora { position: fixed; inset: -20vmax; z-index: -1; pointer-events: none; opacity: var(--aurora-opacity); filter: blur(70px) saturate(140%); }
+.aurora span { position: absolute; width: 55vmax; height: 55vmax; border-radius: 50%; mix-blend-mode: normal; will-change: transform; }
+.aurora span:nth-child(1) { background: radial-gradient(circle at 30% 30%, var(--aurora-1), transparent 62%); left: 5%; top: 0; animation: drift-a 26s ease-in-out infinite alternate; }
+.aurora span:nth-child(2) { background: radial-gradient(circle at 50% 50%, var(--aurora-2), transparent 60%); right: 0; top: 18%; animation: drift-b 32s ease-in-out infinite alternate; }
+.aurora span:nth-child(3) { background: radial-gradient(circle at 50% 50%, var(--aurora-3), transparent 60%); left: 25%; bottom: -10%; animation: drift-c 38s ease-in-out infinite alternate; }
+@keyframes drift-a { to { transform: translate3d(18vmax, 12vmax, 0) scale(1.15); } }
+@keyframes drift-b { to { transform: translate3d(-22vmax, 16vmax, 0) scale(0.9); } }
+@keyframes drift-c { to { transform: translate3d(10vmax, -20vmax, 0) scale(1.2); } }
+
+/* Liquid button: gradient body, glossy top lens, a light sweep */
+.btn-liquid {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--on-accent);
+  background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 85%, white), var(--accent) 45%, color-mix(in oklab, var(--accent) 70%, #13b88a));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -2px 6px rgba(0, 0, 0, 0.18), 0 12px 34px -10px var(--accent);
+}
+.btn-liquid::before {
+  content: "";
+  position: absolute;
+  inset: 1px 1px 52% 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.04));
+  z-index: -1;
+  pointer-events: none;
+}
+.btn-liquid::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-18deg);
+  animation: sweep 4.5s ease-in-out 1.2s infinite;
+  pointer-events: none;
+}
+@keyframes sweep { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+
+/* Best offer: a slowly rotating light around the glass edge */
+@property --angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+.glow-ring { position: relative; }
+.glow-ring::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--angle), transparent 0 40%, var(--accent) 55%, var(--positive) 65%, transparent 80%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: spin-angle 5s linear infinite;
+  pointer-events: none;
+}
+@keyframes spin-angle { to { --angle: 360deg; } }
+
+.shimmer-text {
+  background: linear-gradient(90deg, var(--accent), var(--positive), var(--accent));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+.skeleton-glass { position: relative; overflow: hidden; }
+.skeleton-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.08) 50%, transparent 80%);
+  animation: skel 1.4s ease-in-out infinite;
+}
+@keyframes skel { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora span, .btn-liquid::after, .glow-ring::after, .shimmer-text, .skeleton-glass::after { animation: none !important; }
+}
+
+@keyframes fade-up { from { opacity: 0; transform: translateY(14px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.fade-up { animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fade-up-2 { animation: fade-up 0.8s 0.12s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fade-up-3 { animation: fade-up 0.8s 0.24s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) { .fade-up, .fade-up-2, .fade-up-3 { animation: none; } }

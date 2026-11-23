@@ -12,7 +12,7 @@ export function formatAmount(value: string, maxDecimals = 8, locale: "uk" | "en"
 /** Significant-digit friendly decimals for a rate: small numbers keep more digits. */
 export function decimalsFor(value: string, base = 6): number {
   const n = value.split(".")[0] ?? "0";
-  if (n.length >= 4) return 2;
+  if (n.length >= 2) return 2;
   if (n !== "0") return Math.min(base, 4);
   return Math.max(base, 8);
 }

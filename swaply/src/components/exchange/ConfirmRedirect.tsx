@@ -76,7 +76,7 @@ export function ConfirmRedirect({ quote, onClose, onExpired, t, locale }: { quot
 
         {state.kind === "ready" && (
           <>
-            <div className="rounded-2xl bg-surface-2 p-4">
+            <div className="glass-inset rounded-3xl p-4">
               <div className="text-xs text-faint">{c.redirectTitle}</div>
               <div className="text-lg font-semibold" data-testid="redirect-provider">{state.executingPartner ? `${state.executingPartner} · ${state.providerName}` : state.providerName}</div>
               <div className="mt-2 text-xs text-faint">{t.results.youGet}</div>
@@ -90,7 +90,7 @@ export function ConfirmRedirect({ quote, onClose, onExpired, t, locale }: { quot
               <li>• {c.attribution}</li>
             </ul>
             <a href={state.url} rel="noopener noreferrer nofollow" data-testid="redirect-link"
-              className="flex h-14 w-full items-center justify-center rounded-2xl bg-accent font-semibold text-on-accent transition hover:bg-accent-strong active:scale-[0.98]">
+              className="btn-liquid flex h-14 w-full items-center justify-center rounded-[22px] font-semibold transition active:scale-[0.98]">
               {c.go} ↗
             </a>
           </>

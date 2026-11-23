@@ -7,7 +7,7 @@ import { ThemeToggle } from "./ThemeToggle";
 export function Header({ locale, t, theme, isDemo }: { locale: Locale; t: Dictionary; theme: "dark" | "light"; isDemo: boolean }) {
   const other = locale === "uk" ? "en" : "uk";
   return (
-    <header className="sticky top-0 z-30 border-b border-line/60 bg-bg/75 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-line/50 bg-bg/35 backdrop-blur-2xl backdrop-saturate-150">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
         <Link href={`/${locale}`} className="flex items-center gap-2" aria-label="SWAPLY">
           <Logo />
